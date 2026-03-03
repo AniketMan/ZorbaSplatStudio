@@ -97,6 +97,11 @@ namespace lfs::vis::gui {
             film_strip_.invalidateAll();
         });
 
+        ui::NodeSelected::when([this](const auto& e) {
+            if (e.type != "KEYFRAME")
+                keyframe_gizmo_op_ = ImGuizmo::OPERATION(0);
+        });
+
         scene_sync_->setupEvents();
     }
 
@@ -219,7 +224,14 @@ namespace lfs::vis::gui {
 
         const auto& timeline = controller_.timeline();
         const auto& vp = viewer_->getViewport();
-        const glm::mat4 view_proj = vp.getProjectionMatrix() * vp.getViewMatrix();
+        auto* const rm = viewer_->getRenderingManager();
+        if (!rm)
+            return;
+        const auto& settings = rm->getSettings();
+        const glm::ivec2 vp_size(static_cast<int>(viewport.size.x), static_cast<int>(viewport.size.y));
+        const glm::mat4 projection = lfs::rendering::createProjectionMatrixFromFocal(
+            vp_size, settings.focal_length_mm, settings.orthographic, settings.ortho_scale);
+        const glm::mat4 view_proj = projection * vp.getViewMatrix();
 
         const auto projectToScreen = [&](const glm::vec3& pos) -> glm::vec2 {
             const glm::vec4 clip = view_proj * glm::vec4(pos, 1.0f);
@@ -250,7 +262,9 @@ namespace lfs::vis::gui {
         const auto& io = ImGui::GetIO();
         const int screen_w = static_cast<int>(io.DisplaySize.x);
         const int screen_h = static_cast<int>(io.DisplaySize.y);
-        line_renderer_.begin(screen_w, screen_h);
+        const int fb_w = static_cast<int>(io.DisplaySize.x * io.DisplayFramebufferScale.x);
+        const int fb_h = static_cast<int>(io.DisplaySize.y * io.DisplayFramebufferScale.y);
+        line_renderer_.begin(screen_w, screen_h, fb_w, fb_h);
 
         const auto path_points = timeline.generatePath(PATH_SAMPLES);
         if (path_points.size() >= 2) {

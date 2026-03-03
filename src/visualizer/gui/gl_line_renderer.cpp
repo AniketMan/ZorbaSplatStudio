@@ -74,10 +74,13 @@ namespace lfs::vis::gui {
         glBindVertexArray(0);
     }
 
-    void GLLineRenderer::begin(int screen_w, int screen_h) {
+    void GLLineRenderer::begin(int screen_w, int screen_h, int fb_w, int fb_h) {
         assert(screen_w > 0 && screen_h > 0);
+        assert(fb_w > 0 && fb_h > 0);
         screen_w_ = screen_w;
         screen_h_ = screen_h;
+        fb_w_ = fb_w;
+        fb_h_ = fb_h;
         vertices_.clear();
     }
 
@@ -144,12 +147,15 @@ namespace lfs::vis::gui {
         GLint prev_blend = 0;
         GLint prev_depth = 0;
         GLint prev_scissor = 0;
+        GLint prev_viewport[4] = {};
         glGetIntegerv(GL_CURRENT_PROGRAM, &prev_program);
         glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prev_vao);
         glGetIntegerv(GL_BLEND, &prev_blend);
         glGetIntegerv(GL_DEPTH_TEST, &prev_depth);
         glGetIntegerv(GL_SCISSOR_TEST, &prev_scissor);
+        glGetIntegerv(GL_VIEWPORT, prev_viewport);
 
+        glViewport(0, 0, fb_w_, fb_h_);
         glEnable(GL_BLEND);
         glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
                             GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
@@ -169,6 +175,7 @@ namespace lfs::vis::gui {
 
         glBindVertexArray(prev_vao);
         glUseProgram(prev_program);
+        glViewport(prev_viewport[0], prev_viewport[1], prev_viewport[2], prev_viewport[3]);
         if (prev_blend)
             glEnable(GL_BLEND);
         else
@@ -181,13 +188,6 @@ namespace lfs::vis::gui {
             glEnable(GL_SCISSOR_TEST);
         else
             glDisable(GL_SCISSOR_TEST);
-    }
-
-    glm::vec4 GLLineRenderer::fromU32(uint32_t abgr) {
-        return {static_cast<float>((abgr >> 0) & 0xFF) / 255.0f,
-                static_cast<float>((abgr >> 8) & 0xFF) / 255.0f,
-                static_cast<float>((abgr >> 16) & 0xFF) / 255.0f,
-                static_cast<float>((abgr >> 24) & 0xFF) / 255.0f};
     }
 
     void GLLineRenderer::destroyGLResources() {
