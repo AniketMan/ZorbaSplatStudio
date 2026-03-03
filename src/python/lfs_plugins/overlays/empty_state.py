@@ -62,7 +62,14 @@ class EmptyStateOverlay(Panel):
         zone_min_x = vp_x + ZONE_PADDING
         zone_min_y = vp_y + ZONE_PADDING
         zone_max_x = vp_x + vp_w - ZONE_PADDING
-        zone_max_y = vp_y + vp_h - ZONE_PADDING
+        bottom_padding = ZONE_PADDING
+        if lf.ui.is_sequencer_visible():
+            dp = layout.get_dpi_scale()
+            seq_state = lf.ui.get_sequencer_state()
+            film_strip_h = 56.0 if (seq_state and seq_state.show_film_strip) else 0.0
+            seq_height = 126.0 * dp + film_strip_h
+            bottom_padding = max(ZONE_PADDING, seq_height + 8.0)
+        zone_max_y = vp_y + vp_h - bottom_padding
 
         t = lf.ui.get_time()
         dash_offset = (t * ANIM_SPEED) % (DASH_LENGTH + GAP_LENGTH)
