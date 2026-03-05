@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "C++/CUDA Debug",
+            "name": "ZORBA Train (CUDA Debug)",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/debug_build/LichtFeld-Studio",
@@ -44,6 +44,33 @@
             }
         },
         {
+            "name": "ZORBA View PLY",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/debug_build/LichtFeld-Studio",
+            "args": [
+                "--view", "${input:plyFilePath}"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "PYTHONHOME",
+                    "value": "${workspaceFolder}/debug_build/vcpkg_installed/x64-linux/tools/python3"
+                }
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/local/cuda-12.8/bin/cuda-gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
             "name": "Attach Python (debugpy)",
             "type": "debugpy",
             "request": "attach",
@@ -60,7 +87,7 @@
             "justMyCode": false
         },
         {
-            "name": "C++ Only (no Python debug)",
+            "name": "ZORBA Train (C++ Only)",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/debug_build/LichtFeld-Studio",
@@ -94,6 +121,14 @@
                     "ignoreFailures": true
                 }
             ]
+        }
+    ],
+    "inputs": [
+        {
+            "id": "plyFilePath",
+            "description": "Path to the .ply file to view",
+            "type": "promptString",
+            "default": "output/point_cloud.ply"
         }
     ]
 }
