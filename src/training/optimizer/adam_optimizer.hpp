@@ -2,6 +2,75 @@
  *
  * SPDX-License-Identifier: GPL-3.0-or-later */
 
+/**
+ * @file adam_optimizer.hpp
+ * @brief Pure CUDA Adam optimizer for 3D Gaussian Splatting - No PyTorch dependency
+ *
+ * This file implements a custom Adam optimizer specifically designed for 3DGS training.
+ * Unlike typical deep learning optimizers, this one:
+ *
+ * 1. Has no PyTorch/LibTorch dependency - pure CUDA implementation
+ * 2. Supports dynamic Gaussian count (add/remove during MCMC/ADC)
+ * 3. Uses capacity-based allocation to minimize GPU memory fragmentation
+ * 4. Provides per-parameter learning rate scheduling
+ *
+ * ## Adam Algorithm
+ *
+ * For each parameter θ at step t:
+ * ```
+ * m_t = β1 * m_{t-1} + (1 - β1) * g_t           // First moment (momentum)
+ * v_t = β2 * v_{t-1} + (1 - β2) * g_t²          // Second moment (RMSprop)
+ * m̂_t = m_t / (1 - β1^t)                        // Bias correction
+ * v̂_t = v_t / (1 - β2^t)                        // Bias correction
+ * θ_t = θ_{t-1} - lr * m̂_t / (√v̂_t + ε)        // Parameter update
+ * ```
+ *
+ * ## Differences from Standard Adam
+ *
+ * - **Per-parameter learning rates**: Position, scale, rotation, SH, and opacity
+ *   each have independent learning rates with different schedules. This is critical
+ *   for 3DGS because different parameters converge at different rates.
+ *
+ * - **Smaller epsilon**: Uses ε=1e-15 instead of PyTorch's 1e-8. The 3DGS loss
+ *   landscape has very small gradients for some parameters (especially rotation),
+ *   and larger epsilon would effectively zero them out.
+ *
+ * - **Dynamic sizing**: When Gaussians are added/removed during densification,
+ *   the optimizer state arrays must grow/shrink. This is handled via capacity-based
+ *   allocation similar to std::vector.
+ *
+ * ## Memory Layout
+ *
+ * Each parameter type (position, scale, etc.) has its own state:
+ * - grad: Current gradients (written by backward pass, cleared after step)
+ * - exp_avg: First moment estimates (persistent across steps)
+ * - exp_avg_sq: Second moment estimates (persistent across steps)
+ *
+ * Total memory: ~24 bytes per Gaussian per parameter type.
+ * For 2.5M Gaussians with 6 parameter types: ~360MB optimizer state.
+ *
+ * ## Usage Example
+ *
+ * ```cpp
+ * AdamOptimizer optimizer(splat_data, config);
+ * optimizer.allocate_gradients(max_gaussians);  // Pre-allocate for MCMC
+ *
+ * for (int iter = 0; iter < max_iters; ++iter) {
+ *     // Forward pass and loss computation...
+ *     // Backward pass writes to optimizer.get_grad(ParamType::*)
+ *
+ *     optimizer.step(iter);       // Apply Adam update
+ *     optimizer.zero_grad(iter);  // Clear gradients for next iteration
+ * }
+ * ```
+ *
+ * @see trainer.hpp for integration with the training loop
+ * @see scheduler.hpp for learning rate scheduling
+ *
+ * @author LichtFeld Studio Authors
+ * @author Aniket Bhatt (ZORBA fork modifications)
+ */
+
 #pragma once
 
 #include "core/splat_data.hpp"

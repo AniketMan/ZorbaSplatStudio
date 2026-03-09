@@ -2,6 +2,56 @@
  *
  * SPDX-License-Identifier: GPL-3.0-or-later */
 
+/**
+ * @file mcmc.hpp
+ * @brief MCMC (Markov Chain Monte Carlo) densification strategy for 3D Gaussian Splatting
+ *
+ * This file implements the MCMC-based optimization strategy from the paper:
+ * "3D Gaussian Splatting as Markov Chain Monte Carlo" (Kheradmand et al., 2024)
+ *
+ * ## What is MCMC in 3DGS?
+ *
+ * Traditional 3DGS uses ADC (Adaptive Density Control) to add/remove Gaussians
+ * based on heuristics like gradient magnitude. MCMC reframes this as a sampling
+ * problem: the goal is to sample from a distribution of Gaussians that best
+ * explains the training images.
+ *
+ * ## Key Operations
+ *
+ * The MCMC strategy performs three main operations during training:
+ *
+ * 1. **Relocation**: Move Gaussians to better positions based on the loss gradient.
+ *    Uses Langevin dynamics to balance exploitation (gradient descent) with
+ *    exploration (noise injection). See Equation (9) in the paper.
+ *
+ * 2. **Addition**: Spawn new Gaussians near high-loss regions. Uses importance
+ *    sampling weighted by per-Gaussian loss contribution to decide where new
+ *    Gaussians should appear.
+ *
+ * 3. **Pruning**: Remove Gaussians with low opacity or that contribute little
+ *    to the rendered images. This prevents unbounded growth.
+ *
+ * ## Advantages Over ADC
+ *
+ * - More principled: grounded in probabilistic inference theory
+ * - Better convergence: avoids local minima through exploration
+ * - Handles challenging scenes: works better with reflections, thin structures
+ * - More stable: fewer hyperparameters to tune
+ *
+ * ## Implementation Notes
+ *
+ * - Uses CUDA kernels for all operations (see mcmc_kernels.cu)
+ * - Relocation coefficients are precomputed and stored in constant memory
+ * - The optimizer state (Adam moments) must be updated when Gaussians are added/removed
+ *
+ * @see mcmc_kernels.cu for GPU kernel implementations
+ * @see adc.hpp for the alternative ADC strategy
+ * @see istrategy.hpp for the strategy interface
+ *
+ * @author LichtFeld Studio Authors
+ * @author Aniket Bhatt (ZORBA fork modifications)
+ */
+
 #pragma once
 
 #include "core/splat_data.hpp"

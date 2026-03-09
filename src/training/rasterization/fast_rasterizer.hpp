@@ -2,6 +2,80 @@
  *
  * SPDX-License-Identifier: GPL-3.0-or-later */
 
+/**
+ * @file fast_rasterizer.hpp
+ * @brief High-performance differentiable Gaussian rasterizer for training
+ *
+ * This file defines the interface to the FastGS rasterization backend, which
+ * provides 2.4x faster rendering compared to the original Inria 3DGS implementation.
+ *
+ * ## Rasterization Pipeline Overview
+ *
+ * The differentiable rasterizer performs both forward (rendering) and backward
+ * (gradient computation) passes. The pipeline is:
+ *
+ * ```
+ * FORWARD PASS:
+ * ┌─────────────┐   ┌──────────────┐   ┌─────────────┐   ┌───────────┐
+ * │ 3D Gaussians│ → │ Project to 2D│ → │ Tile Sorting│ → │ Rasterize │ → Image
+ * │ (pos,cov,sh)│   │ (screen space)│  │ (depth order)│  │ (α-blend) │
+ * └─────────────┘   └──────────────┘   └─────────────┘   └───────────┘
+ *
+ * BACKWARD PASS:
+ * ┌───────────┐   ┌──────────────┐   ┌─────────────────┐   ┌──────────────┐
+ * │ dL/dImage │ → │ dL/dGaussian │ → │ dL/dCovariance  │ → │ dL/dPosition │
+ * │ (from loss)│   │ (per-pixel)  │   │ dL/dSH, dL/dα   │   │ dL/dScale    │
+ * └───────────┘   └──────────────┘   └─────────────────┘   └──────────────┘
+ * ```
+ *
+ * ## Key Performance Optimizations
+ *
+ * 1. **Tile-based rendering**: Screen is divided into 16x16 tiles. Each tile
+ *    only processes Gaussians that overlap it, reducing wasted work.
+ *
+ * 2. **GPU radix sort**: Gaussians are sorted by depth per-tile using highly
+ *    optimized CUB radix sort. This enables correct alpha blending order.
+ *
+ * 3. **Shared memory caching**: Gaussian data is loaded into shared memory
+ *    once per tile, then reused across all pixels in the tile.
+ *
+ * 4. **Early termination**: Pixel threads stop accumulating when alpha reaches
+ *    saturation (>0.9999), avoiding unnecessary Gaussian evaluations.
+ *
+ * 5. **Coalesced memory access**: Data layout is optimized for GPU memory
+ *    coalescing patterns, maximizing memory bandwidth utilization.
+ *
+ * ## Memory Requirements
+ *
+ * The rasterizer allocates intermediate buffers for:
+ * - Projected 2D Gaussians (~64 bytes per Gaussian)
+ * - Per-tile Gaussian lists (~4 bytes per tile-Gaussian intersection)
+ * - Sort keys and values (~16 bytes per Gaussian)
+ *
+ * For 2.5M Gaussians at 1080p: ~500MB VRAM for rasterization buffers alone.
+ *
+ * ## Usage
+ *
+ * ```cpp
+ * // Forward pass - render image and save context for backward
+ * auto [render_output, ctx] = fast_rasterize_forward(splat_data, camera, params);
+ *
+ * // Compute loss gradient
+ * auto d_image = compute_loss_gradient(render_output.image, target_image);
+ *
+ * // Backward pass - compute gradients w.r.t. Gaussian parameters
+ * fast_rasterize_backward(ctx, d_image, splat_data);
+ *
+ * // Gradients are now in splat_data.grad_* fields, ready for optimizer
+ * ```
+ *
+ * @see gsplat_rasterizer.hpp for the alternative gsplat backend
+ * @see trainer.hpp for how rasterization fits into the training loop
+ *
+ * @author LichtFeld Studio Authors
+ * @author Aniket Bhatt (ZORBA fork modifications)
+ */
+
 #pragma once
 
 #include "core/camera.hpp"

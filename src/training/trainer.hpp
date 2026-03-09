@@ -2,6 +2,77 @@
  *
  * SPDX-License-Identifier: GPL-3.0-or-later */
 
+/**
+ * @file trainer.hpp
+ * @brief Core 3D Gaussian Splatting training orchestrator for ZORBA Splat Studio
+ *
+ * This file defines the Trainer class, which is the central component responsible
+ * for training 3D Gaussian Splatting (3DGS) models from Structure-from-Motion data.
+ *
+ * ## Architecture Overview
+ *
+ * The training pipeline follows this flow:
+ *
+ * ```
+ * COLMAP Data → Scene → Trainer → Rasterizer → Loss → Optimizer → Updated Gaussians
+ *     ↓           ↓        ↓          ↓          ↓         ↓
+ *   Images    Cameras   Strategy   GPU Render  L1+SSIM   Adam
+ *   Points    Gaussians  (MCMC/    Forward     D-SSIM    Per-Gaussian
+ *                        ADC)      Pass                  Gradients
+ * ```
+ *
+ * ## Key Components
+ *
+ * - **Trainer**: Orchestrates the training loop, manages iteration state, handles
+ *   checkpointing, and coordinates between the rasterizer, loss functions, and optimizer.
+ *
+ * - **IStrategy**: Pluggable densification strategy (MCMC or ADC) that decides when
+ *   and how to split/clone/prune Gaussians during training.
+ *
+ * - **AdamOptimizer**: Custom CUDA implementation of Adam optimizer with per-parameter
+ *   learning rate scheduling. No PyTorch dependency.
+ *
+ * - **Rasterizer**: GPU-accelerated differentiable Gaussian rasterizer (FastGS or gsplat
+ *   backend) that renders Gaussians to images and computes gradients.
+ *
+ * ## Threading Model
+ *
+ * Training runs on a dedicated thread separate from the UI/rendering thread.
+ * Communication happens via:
+ * - Atomic flags for state (is_training, should_stop)
+ * - Mutex-protected access to splat data for visualization
+ * - Event system for progress updates
+ *
+ * ## Memory Management
+ *
+ * All GPU memory is managed through CUDA memory arenas. The trainer pre-allocates
+ * buffers for the maximum expected Gaussian count to avoid runtime allocations.
+ * Typical VRAM usage: 8GB minimum, scales with image resolution and Gaussian count.
+ *
+ * ## Usage Example
+ *
+ * ```cpp
+ * // Create trainer from scene
+ * Trainer trainer(scene);
+ *
+ * // Configure training parameters
+ * auto params = Parameters::fromCommandLine(argc, argv);
+ *
+ * // Start training (runs on background thread)
+ * trainer.train(params, stopToken);
+ *
+ * // Export result
+ * trainer.exportPLY("/path/to/output.ply");
+ * ```
+ *
+ * @see IStrategy for densification strategies
+ * @see AdamOptimizer for the optimizer implementation
+ * @see fast_rasterizer.hpp for the GPU rasterization pipeline
+ *
+ * @author LichtFeld Studio Authors
+ * @author Aniket Bhatt (ZORBA fork modifications)
+ */
+
 #pragma once
 
 #include "checkpoint.hpp"
